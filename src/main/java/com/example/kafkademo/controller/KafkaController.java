@@ -24,9 +24,9 @@ public class KafkaController {
         clientService.processTenantMessage(clientDTO);
     }
 
-    @PostMapping("/send/test")
-    public void sendDeclarationMsgTest() throws JsonProcessingException {
-        for (int i = 0; i < 50; i++) {
+    @PostMapping("/send/test/{count}")
+    public void sendDeclarationMsgTest(@PathVariable Integer count) throws JsonProcessingException {
+        for (int i = 0; i < count; i++) {
             ClientDTO clientDTO = new ClientDTO();
             clientDTO.setTenantId("tenantA");
             clientDTO.setMessage("[" + i + "]" + LocalDateTime.now());

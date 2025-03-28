@@ -15,7 +15,7 @@ class ThreadPoolConfig {
     /**
      * 核心线程数
      */
-    private static final int CORE_POOL_SIZE = 8;
+    private static final int CORE_POOL_SIZE = 5;
     /**
      * 最大线程数
      */

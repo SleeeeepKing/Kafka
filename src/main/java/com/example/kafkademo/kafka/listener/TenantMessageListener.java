@@ -129,7 +129,7 @@ public class TenantMessageListener {
     @KafkaListener(
             topics = "client-topic",
             groupId = "multi-tenant-group",
-            concurrency = "5",
+            concurrency = "3",
             containerFactory = "idleKafkaListenerContainerFactory",
             id = "pushListener"
     )
@@ -161,10 +161,10 @@ public class TenantMessageListener {
             log.info("租户[{}]当前可消费消息数: {}", tenantId, maxConsumeCount);
             tenantRecords.forEach(record -> threadPool.submit(() -> {
                 int processed = tenantConfigUtils.incrementAndGetProcessed(tenantId);
-                log.info("租户[{}]当前已处理消息数: {}", tenantId, processed);
+                log.info("租户[{}]正在处理第[{}]条数据: {}", tenantId, processed, record.value());
                 if (processed > maxConsumeCount) {
                     // 超过限流数量，重新送回队列
-                    log.info("租户[{}]超过限流数量，消息重新送回队列: {}", tenantId, record);
+                    log.info("租户[{}]超过限流数量，第[{}]消息重新送回队列: {}", tenantId, processed, record.value());
                     kafkaProducer.sendMessage("client-topic", tenantId, record.value());
 //                    tenantConfigUtils.incrementProcessed(tenantId);
                     return;

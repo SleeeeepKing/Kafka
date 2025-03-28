@@ -21,7 +21,7 @@ public class RedisConfigInitializer {
 
     // 可以从配置文件或数据库加载
     private static final Map<String, TenantConfigDomain> initialTenantConfig = Map.of(
-            "tenantA", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 2, 5, 10, 0, 0),
+            "tenantA", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 2, 2, 5, 0, 0),
             "tenantB", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 1, 1, 3, 0, 0),
             "tenantC", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 1, 1, 3, 0, 0)
     );

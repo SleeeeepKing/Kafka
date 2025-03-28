@@ -95,10 +95,10 @@ public class TenantConsumerService {
             return;
         }
 
-        log.info("Received message[{}]: {}", attemptCount, record.value());
+//        log.info("Received message[{}]: {}", attemptCount, record.value());
         // 幂等性校验，校验消息是否被重复消费
         String cacheKey = record.topic() + "_" + record.partition() + "_" + record.offset() + "_" + record.key();
-        log.info("cacheKey={}", cacheKey);
+//        log.info("cacheKey={}", cacheKey);
         if (fifoCache.containsKey(cacheKey)) {
             log.error("已经被消费，请勿重新消费...cacheKey={}", cacheKey);
             return;
@@ -137,9 +137,9 @@ public class TenantConsumerService {
             if ("200".equals(code)) {
                 tenantConfigUtils.incrementSuccess(tenantId);
                 serverStatusUtils.incrementSuccess(tenantId);
-                log.info("success: {}", tenantConfigUtils.getTenantConfig(tenantId).toString());
+//                log.info("success: {}", tenantConfigUtils.getTenantConfig(tenantId).toString());
             } else {
-                log.info("failed: {}", tenantConfigUtils.getTenantConfig(tenantId).toString());
+//                log.info("failed: {}", tenantConfigUtils.getTenantConfig(tenantId).toString());
 //                throw new InternalServerException("Failed to send message to customs server");
             }
 //                });
@@ -157,7 +157,7 @@ public class TenantConsumerService {
                 // 送入重试1分钟队列 , 测试时使用2秒
                 kafkaProducer.sendDelayedMessage("client-topic-retry-2000", record.value(), 2);
             }
-            log.error("Failed to process message", e);
+//            log.error("Failed to process message", e);
             fifoCache.remove(cacheKey);
             ack.acknowledge();
         }

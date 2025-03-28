@@ -36,6 +36,7 @@ public class AdaptiveKafkaConsumer {
 
         for (String tenantId : tenantIds) {
             TenantConfigDomain config = tenantConfigUtils.getTenantConfig(tenantId);
+            log.info("租户[{}]: {}", tenantId, config);
             if (config != null) {
                 adjustFetchCount(tenantId, config);
             }
@@ -98,8 +99,8 @@ public class AdaptiveKafkaConsumer {
         // 计算本轮可用额度
         int minQuota = config.getMinFetchCount();
         int requiredQuota = config.getFetchCount() <= minQuota ? 0 : config.getFetchCount() - minQuota;
-//        int leftOver = acquireLeftoverQuota("server:customsServer:status", requiredQuota);
-        int leftOver = 1;
+        int leftOver = acquireLeftoverQuota("server:customsServer:status", requiredQuota);
+//        int leftOver = 1;
         return serverStatusUtils.getServerIsAlive("customsServer") != 1 ? 1 : minQuota + leftOver; //动态竞争quota后得出的额度
     }
 
@@ -109,23 +110,21 @@ public class AdaptiveKafkaConsumer {
         // Lua脚本 (可直接内联，也可独立文件后加载成字符串)
         String script = """
                 local quotaStr = redis.call("HGET", KEYS[1], "quota")
-                if not quotaStr then
-                   return 0
-                end
-
-                local quota = tonumber(quotaStr)
-                if (not quota) or (quota <= 0) then
-                   return 0
-                end
-
-                local want = tonumber(ARGV[1])
-                if not want then
-                   return 0
-                end
-
-                local toTake = math.min(quota, want)
-                redis.call("HINCRBY", KEYS[1], "quota", -toTake)
-                return toTake
+                    if not quotaStr then
+                        return 0
+                    end
+                    local quota = tonumber(quotaStr)
+                    if not quota or quota <= 0 then
+                        return 0
+                    end
+                    local want = tonumber(ARGV[1])
+                    -- 新增判断：如果 want 是 nil 或 <= 0，则直接返回
+                    if not want or want <= 0 then
+                        return 0
+                    end
+                    local toTake = math.min(quota, want)
+                    redis.call("HINCRBY", KEYS[1], "quota", -toTake)
+                    return toTake
                 """;
 
         // 构造RedisScript对象, 指定返回类型为Long

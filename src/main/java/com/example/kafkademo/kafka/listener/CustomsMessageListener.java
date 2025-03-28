@@ -75,7 +75,7 @@
 //        tenantGroupedRecords.forEach((tenantId, tenantMsgs) -> {
 //            TenantConfigDomain config = tenantConfigUtils.getTenantConfig(tenantId);
 //            if (config == null) {
-//                System.out.println("未找到租户配置：" + tenantId);
+//                log.info("未找到租户配置：" + tenantId);
 //                return;
 //            }
 //

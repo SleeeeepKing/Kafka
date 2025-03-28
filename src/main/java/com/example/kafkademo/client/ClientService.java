@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.json.JacksonJsonParser;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,7 +21,7 @@ public class ClientService {
         // 从message中获取tenantId
         // 发送消息到kafka
         String msg = JacksonSerializeUtil.serialize(clientDTO);
-        sendMessage("client-topic", msg);
+        sendMessageWithKey("client-topic", clientDTO.getTenantId(), msg);
     }
 
     public void processServerMessage(ClientDTO clientDTO) throws JsonProcessingException {
@@ -30,6 +29,11 @@ public class ClientService {
         //...
         // 发送消息到kafka
         sendMessage("server-topic", JacksonSerializeUtil.serialize(clientDTO));
+    }
+
+    public void sendMessageWithKey(String topic, String tenantId, String message) {
+        kafkaProducer.sendMessage(topic, tenantId, message);
+        log.info("发送消息到kafka成功:{}", message);
     }
 
     public void sendMessage(String topic, String message) {

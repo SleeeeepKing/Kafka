@@ -1,5 +1,6 @@
 package com.example.kafkademo.scheduler;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Component
+@Slf4j
 public class QuotaScheduler {
 
     @Autowired
@@ -23,7 +25,7 @@ public class QuotaScheduler {
         //    你可以在serverHash里存 "capacity" 或 "total" 字段名称，自己定义
         Map<Object, Object> serverMap = redisTemplate.opsForHash().entries(serverKey);
         if (serverMap.isEmpty()) {
-            System.out.println("serverKey " + serverKey + " 不存在，跳过。");
+            log.info("serverKey " + serverKey + " 不存在，跳过。");
             return;
         }
 

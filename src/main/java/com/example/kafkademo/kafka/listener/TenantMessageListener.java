@@ -7,9 +7,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.annotation.RetryableTopic;
-import org.springframework.retry.annotation.Backoff;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 @Slf4j
@@ -19,20 +20,33 @@ public class TenantMessageListener {
     @Autowired
     private TenantConsumerService tenantConsumerService;
 
-    @RetryableTopic(
-            attempts = "3",
-            backoff = @Backoff(delay = 2000, multiplier = 2),
-            autoCreateTopics = "true",
-            dltTopicSuffix = ".dlt"
-    )
+//    @RetryableTopic(
+//            attempts = "3",
+//            backoff = @Backoff(delay = 2000, multiplier = 2),
+//            autoCreateTopics = "true",
+//            dltTopicSuffix = ".dlt"
+//    )
+//    @KafkaListener(
+//            topics = "client-topic",
+//            groupId = "multi-tenant-group",
+//            concurrency = "5",
+//            containerFactory = "idleKafkaListenerContainerFactory" // 指明使用上面配置的Factory，每五秒poll一次消息队列
+//    )
+//    public void kafkaListener(ConsumerRecord<String, String> record) throws JsonProcessingException {
+//        tenantConsumerService.consume(record);
+//    }
+
+
+
     @KafkaListener(
             topics = "client-topic",
             groupId = "multi-tenant-group",
             concurrency = "5",
-            containerFactory = "idleKafkaListenerContainerFactory" // 指明使用上面配置的Factory，每五秒poll一次消息队列
+            containerFactory = "idleKafkaListenerContainerFactory", // 指明使用上面配置的Factory，每五秒poll一次消息队列
+            id = "pushListener" // 配置Listener ID用于暂停和恢复
     )
-    public void kafkaListener(ConsumerRecord<String, String> record) throws JsonProcessingException {
-        tenantConsumerService.consume(record);
+    public void kafkaListener(List<ConsumerRecord<String, String>> records, Acknowledgment ack) throws JsonProcessingException {
+        tenantConsumerService.consumeByBatch(records);
     }
 
     // 消费死信队列消息并发出预警

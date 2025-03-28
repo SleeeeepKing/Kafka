@@ -19,8 +19,9 @@ public class KafkaConsumerConfig {
 
         // 核心：设置容器属性 idleBetweenPolls 为5000ms
         factory.getContainerProperties().setIdleBetweenPolls(5000);
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
-//        factory.setBatchListener(true);
+        factory.setBatchListener(true);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+
         return factory;
     }
 }

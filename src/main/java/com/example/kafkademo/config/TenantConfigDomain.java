@@ -15,4 +15,5 @@ public class TenantConfigDomain {
     private Integer minFetchCount; // 最小拉取数量, 初始配额/分区数
     private Integer maxFetchCount; // 最大拉取数量
     private Integer leftOver; // 竞争到的剩余额度
+    private Integer processed; // 当前轮次已处理的消息数
 }

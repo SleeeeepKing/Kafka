@@ -1,30 +1,40 @@
 package com.example.kafkademo.kafka.listener;
 
+import com.example.kafkademo.config.TenantConfigDomain;
 import com.example.kafkademo.exception.InternalServerException;
 import com.example.kafkademo.kafka.comsumer.TenantConsumerService;
 import com.example.kafkademo.kafka.producer.KafkaProducer;
+import com.example.kafkademo.kafka.strategy.AdaptiveKafkaConsumer;
 import com.example.kafkademo.util.TeamsNotificationService;
+import com.example.kafkademo.util.TenantConfigUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.retry.annotation.Backoff;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -40,7 +50,12 @@ public class TenantMessageListener {
     private KafkaListenerEndpointRegistry registry;
     @Autowired
     private KafkaProducer kafkaProducer;
+    @Autowired
+    private TenantConfigUtils tenantConfigUtils;
+    @Autowired
+    private AdaptiveKafkaConsumer adaptiveKafkaConsumer;
 
+    /*************************************************************************************************************************************/
     @KafkaListener(
             topics = "client-topic-retry-2000",
             groupId = "multi-tenant-group",
@@ -99,22 +114,24 @@ public class TenantMessageListener {
             concurrency = "5",
             containerFactory = "kafkaListenerContainerFactory"
     )
-    public void kafkaDltListener(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
+    public void kafkaDltListener(ConsumerRecord<String, String> record, Acknowledgment ack) {
         if (Objects.isNull(record)) {
             ack.acknowledge();
             return;
         }
         log.error("死信队列消息出现: {}", record.value());
-//        teamsNotificationService.sendMessage("推送失败: " + record.value());
+        teamsNotificationService.sendMessage("推送失败: " + record.value());
         ack.acknowledge();
     }
+
+    /*************************************************************************************************************************************/
 
     @KafkaListener(
             topics = "client-topic",
             groupId = "multi-tenant-group",
             concurrency = "5",
-            containerFactory = "idleKafkaListenerContainerFactory", // 指明使用上面配置的Factory，每五秒poll一次消息队列
-            id = "pushListener" // 配置Listener ID用于暂停和恢复
+            containerFactory = "idleKafkaListenerContainerFactory",
+            id = "pushListener"
     )
     public void kafkaListener(List<ConsumerRecord<String, String>> records, Acknowledgment ack) {
         if (records.isEmpty()) {
@@ -122,25 +139,64 @@ public class TenantMessageListener {
             return;
         }
 
-        records.forEach(record -> threadPool.submit(() -> {
-            try {
-                tenantConsumerService.consume(record, 1, ack);
-            } catch (JsonProcessingException e) {
-                throw new InternalServerException(e);
-            }
-        }));
+        Map<String, List<ConsumerRecord<String, String>>> recordsByTenant = records.stream()
+                .collect(Collectors.groupingBy(ConsumerRecord::key));
 
-        // 提交最大offset+1（快速提交，推进offset）
+        CountDownLatch latch = new CountDownLatch(recordsByTenant.size());
+
+        recordsByTenant.forEach((tenantId, tenantRecords) -> {
+            TenantConfigDomain tenantConfig = tenantConfigUtils.getTenantConfig(tenantId);
+            if (tenantConfig == null) {
+                // 租户不存在，消息处理不了，提交Offset后发送到DLQ
+                tenantRecords.forEach(record -> {
+                    kafkaProducer.sendMessage("client-topic.dlt", record.value());
+                    log.warn("租户配置不存在, 消息发送到DLQ: {}", record);
+                });
+
+                latch.countDown();
+                return;
+            }
+
+            int maxConsumeCount = adaptiveKafkaConsumer.getCurrentRoundQuota(tenantId);
+            log.info("租户[{}]当前可消费消息数: {}", tenantId, maxConsumeCount);
+            tenantRecords.forEach(record -> threadPool.submit(() -> {
+                int processed = tenantConfigUtils.incrementAndGetProcessed(tenantId);
+                log.info("租户[{}]当前已处理消息数: {}", tenantId, processed);
+                if (processed > maxConsumeCount) {
+                    // 超过限流数量，重新送回队列
+                    log.info("租户[{}]超过限流数量，消息重新送回队列: {}", tenantId, record);
+                    kafkaProducer.sendMessage("client-topic", tenantId, record.value());
+//                    tenantConfigUtils.incrementProcessed(tenantId);
+                    return;
+                }
+                try {
+                    tenantConsumerService.consume(record, 1, ack);
+                } catch (Exception e) {
+                    // 说明在catch里面又出问题了，这里不再处理，直接提交死信队列
+                    kafkaProducer.sendMessage("client-topic.dlt", record.value());
+                }
+            }));
+
+            tenantConfigUtils.resetProcessed(tenantId);
+            latch.countDown();
+        });
+
+        try {
+            latch.await(); // 确保线程池已提交所有任务
+        } catch (InterruptedException ignored) {
+        }
+
         ack.acknowledge();
-        // 暂停当前Listener，延迟一定时间后自动恢复
         pauseListenerWithDelay("pushListener", Duration.ofSeconds(5));
     }
 
     // 暂停Listener并设定延迟自动恢复
     private void pauseListenerWithDelay(String listenerId, Duration duration) {
-        Objects.requireNonNull(registry.getListenerContainer(listenerId)).pause();
-        CompletableFuture.delayedExecutor(duration.getSeconds(), TimeUnit.SECONDS)
-                .execute(() -> Objects.requireNonNull(registry.getListenerContainer(listenerId)).resume());
+        MessageListenerContainer listenerContainer = registry.getListenerContainer(listenerId);
+        if (listenerContainer != null && listenerContainer.isRunning()) {
+            listenerContainer.pause();
+            CompletableFuture.delayedExecutor(duration.getSeconds(), TimeUnit.SECONDS)
+                    .execute(listenerContainer::resume);
+        }
     }
-
 }

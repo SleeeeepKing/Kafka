@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Component
@@ -39,6 +40,10 @@ public class ServerStatusUtils {
         map.put("isAlive", status.getIsAlive().toString());
 
         redisTemplate.opsForHash().putAll(hashKey, map);
+    }
+
+    public Integer getServerIsAlive(String serverName) {
+        return Integer.parseInt(Objects.requireNonNull(redisTemplate.opsForHash().get("server:" + serverName + ":status", "isAlive")).toString());
     }
 
     public void incrementTotal(String serverName) {

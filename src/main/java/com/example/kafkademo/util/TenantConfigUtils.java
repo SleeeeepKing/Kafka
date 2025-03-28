@@ -29,7 +29,8 @@ public class TenantConfigUtils {
                 Integer.parseInt(entries.getOrDefault("fetchCount", "1000").toString()),
                 Integer.parseInt(entries.getOrDefault("minFetchCount", "100").toString()),
                 Integer.parseInt(entries.getOrDefault("maxFetchCount", "1000").toString()),
-                Integer.parseInt(entries.getOrDefault("leftOver", "0").toString())
+                Integer.parseInt(entries.getOrDefault("leftOver", "0").toString()),
+                Integer.parseInt(entries.getOrDefault("processed", "0").toString())
         );
     }
 
@@ -48,6 +49,17 @@ public class TenantConfigUtils {
 
     public void incrementTotal(String tenantId){
         redisTemplate.opsForHash().increment("tenant:" + tenantId + ":config", "total", 1);
+    }
+
+    // 让方法同时完成：加1 并 返回最新处理数
+    public int incrementAndGetProcessed(String tenantId) {
+        Long newVal = redisTemplate.opsForHash()
+                .increment("tenant:" + tenantId + ":config", "processed", 1);
+        return newVal.intValue();
+    }
+
+    public void resetProcessed(String tenantId){
+        redisTemplate.opsForHash().put("tenant:" + tenantId + ":config", "processed", "0");
     }
 
     public void incrementSuccess(String tenantId){
@@ -70,8 +82,16 @@ public class TenantConfigUtils {
     }
 
     public List<String> getAllTenantIds(){
-        return List.of("tenantA", "tenantB", "tenantC");
+//        return List.of("tenantA", "tenantB", "tenantC");
+        return List.of("tenantA");
     }
 
 
+    public void updateFetchCount(String tenantId, Integer fetchCount) {
+        redisTemplate.opsForHash().put("tenant:" + tenantId + ":config", "fetchCount", fetchCount.toString());
+    }
+
+    public void updateStatus(String tenantId, TenantStatusEnum state) {
+        redisTemplate.opsForHash().put("tenant:" + tenantId + ":config", "state", state.name());
+    }
 }

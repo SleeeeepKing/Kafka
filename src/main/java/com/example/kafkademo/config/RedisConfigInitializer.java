@@ -21,14 +21,14 @@ public class RedisConfigInitializer {
 
     // 可以从配置文件或数据库加载
     private static final Map<String, TenantConfigDomain> initialTenantConfig = Map.of(
-            "tenantA", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 150, 100, 200, 0),
-            "tenantB", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 30, 10, 200, 0),
-            "tenantC", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 20, 10, 200, 0)
+            "tenantA", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 2, 5, 10, 0, 0),
+            "tenantB", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 1, 1, 3, 0, 0),
+            "tenantC", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 1, 1, 3, 0, 0)
     );
     // 可以从配置文件或数据库加载
     private static final Map<String, CustomsServerStatus> initialServerStatus = Map.of(
-            "customsServer", new CustomsServerStatus( 0, 0, 1,200,80),
-            "ceoneServer", new CustomsServerStatus( 0, 0, 1,200,200)
+            "customsServer", new CustomsServerStatus( 0, 0, 1,50,43),
+            "ceoneServer", new CustomsServerStatus( 0, 0, 1,200,50)
     );
 
     @PostConstruct

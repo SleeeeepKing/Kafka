@@ -11,6 +11,6 @@ public class TenantBHandler implements MessageHandler {
     public String handler(String message) {
         // 租户B的处理逻辑
         log.info("TenantB处理消息: " + message);
-        return "200";
+        return "500";
     }
 }

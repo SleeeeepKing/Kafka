@@ -1,11 +1,10 @@
 package com.example.kafkademo.kafka.comsumer;
 
 import cn.hutool.cache.impl.FIFOCache;
-import com.example.kafkademo.client.ClientDTO;
+import com.example.kafkademo.kafka.comsumer.dto.ClientDTO;
 import com.example.kafkademo.client.ClientService;
-import com.example.kafkademo.config.CustomsServerStatus;
-import com.example.kafkademo.config.TenantConfigDomain;
-import com.example.kafkademo.exception.InternalServerException;
+import com.example.kafkademo.config.dto.CustomsServerStatus;
+import com.example.kafkademo.config.dto.TenantConfigDomain;
 import com.example.kafkademo.kafka.handler.MessageHandler;
 import com.example.kafkademo.kafka.producer.KafkaProducer;
 import com.example.kafkademo.util.ServerStatusUtils;
@@ -17,15 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 @Service

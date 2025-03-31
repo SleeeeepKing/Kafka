@@ -1,5 +1,6 @@
 package com.example.kafkademo.client;
 
+import com.example.kafkademo.kafka.comsumer.dto.ClientDTO;
 import com.example.kafkademo.kafka.producer.KafkaProducer;
 import com.example.kafkademo.util.JacksonSerializeUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;

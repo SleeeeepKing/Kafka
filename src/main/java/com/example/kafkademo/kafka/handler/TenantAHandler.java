@@ -13,7 +13,7 @@ public class TenantAHandler implements MessageHandler {
         log.info("TenantA处理消息: " + message);
         // 可调用第三方接口或业务逻辑
         // 随机60%返回200 40%返回500
-        if (Math.random() < 0.3) {
+        if (Math.random() < 0.7) {
             return "200";
         } else {
             return "500";

@@ -20,7 +20,7 @@ public class QuotaScheduler {
     private ServerStatusUtils serverStatusUtils;
 
     // 每5秒重置server的剩余quota
-    @Scheduled(fixedRate = 5000)
+//    @Scheduled(fixedRate = 5000)
     public void resetServerQuota() {
         String serverName = "customsServer"; // 或者从配置中获取
         String serverKey = "server:" + serverName + ":status";

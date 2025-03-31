@@ -1,5 +1,6 @@
-package com.example.kafkademo.config;
+package com.example.kafkademo.config.dto;
 
+import com.example.kafkademo.config.enums.TenantStatusEnum;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

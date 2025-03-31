@@ -1,4 +1,4 @@
-package com.example.kafkademo.client;
+package com.example.kafkademo.kafka.comsumer.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -9,5 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ClientDTO {
     private String tenantId;
+    private String targetServer;
+    private String url;
     private String message;
 }

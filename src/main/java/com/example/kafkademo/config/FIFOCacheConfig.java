@@ -12,6 +12,6 @@ import org.springframework.context.annotation.Configuration;
 public class FIFOCacheConfig {
     @Bean
     public FIFOCache<String,Boolean> fifoCache() {
-        return new FIFOCache(10000, DateUnit.MINUTE.getMillis() * 30);
+        return new FIFOCache<>(10000, DateUnit.MINUTE.getMillis() * 30);
     }
 }

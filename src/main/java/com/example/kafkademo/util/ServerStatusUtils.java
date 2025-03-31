@@ -1,15 +1,13 @@
 package com.example.kafkademo.util;
 
-import com.example.kafkademo.config.CustomsServerStatus;
+import com.example.kafkademo.config.dto.CustomsServerStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 @Component
 public class ServerStatusUtils {

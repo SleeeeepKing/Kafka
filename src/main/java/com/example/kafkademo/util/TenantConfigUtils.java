@@ -1,7 +1,7 @@
 package com.example.kafkademo.util;
 
-import com.example.kafkademo.config.TenantConfigDomain;
-import com.example.kafkademo.config.TenantStatusEnum;
+import com.example.kafkademo.config.dto.TenantConfigDomain;
+import com.example.kafkademo.config.enums.TenantStatusEnum;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -83,8 +83,9 @@ public class TenantConfigUtils {
     }
 
     public List<String> getAllTenantIds(){
-//        return List.of("tenantA", "tenantB", "tenantC");
-        return List.of("tenantA");
+        // todo 从数据库中获取租户列表
+        return List.of("tenantA", "tenantB", "tenantC");
+//        return List.of("tenantA");
     }
 
 

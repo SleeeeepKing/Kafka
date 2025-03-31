@@ -1,15 +1,16 @@
 package com.example.kafkademo.config;
 
+import com.example.kafkademo.config.dto.CustomsServerStatus;
+import com.example.kafkademo.config.dto.TenantConfigDomain;
+import com.example.kafkademo.config.enums.TenantStatusEnum;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 @Component
 public class RedisConfigInitializer {
@@ -27,7 +28,7 @@ public class RedisConfigInitializer {
     );
     // 可以从配置文件或数据库加载
     private static final Map<String, CustomsServerStatus> initialServerStatus = Map.of(
-            "customsServer", new CustomsServerStatus( 0, 0, 1,30,5),
+            "customsServer", new CustomsServerStatus( 0, 0, 1,30,26),
             "ceoneServer", new CustomsServerStatus( 0, 0, 1,200,50)
     );
 

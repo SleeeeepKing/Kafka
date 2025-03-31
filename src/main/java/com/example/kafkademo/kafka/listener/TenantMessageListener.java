@@ -1,19 +1,16 @@
 package com.example.kafkademo.kafka.listener;
 
-import com.example.kafkademo.config.TenantConfigDomain;
-import com.example.kafkademo.exception.InternalServerException;
+import com.example.kafkademo.config.dto.TenantConfigDomain;
 import com.example.kafkademo.kafka.comsumer.TenantConsumerService;
 import com.example.kafkademo.kafka.producer.KafkaProducer;
 import com.example.kafkademo.kafka.strategy.AdaptiveKafkaConsumer;
+import com.example.kafkademo.scheduler.QuotaScheduler;
 import com.example.kafkademo.util.ServerStatusUtils;
 import com.example.kafkademo.util.TeamsNotificationService;
 import com.example.kafkademo.util.TenantConfigUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -25,8 +22,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,7 +30,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Component
@@ -57,6 +52,8 @@ public class TenantMessageListener {
     private AdaptiveKafkaConsumer adaptiveKafkaConsumer;
     @Autowired
     private ServerStatusUtils serverStatusUtils;
+    @Autowired
+    private QuotaScheduler quotaScheduler;
 
     /*************************************************************************************************************************************/
     @KafkaListener(
@@ -136,7 +133,9 @@ public class TenantMessageListener {
             containerFactory = "idleKafkaListenerContainerFactory",
             id = "pushListener"
     )
-    public void kafkaListener(List<ConsumerRecord<String, String>> records, Acknowledgment ack) {
+    public void kafkaListener(List<ConsumerRecord<String, String>> records, Acknowledgment ack) throws InterruptedException {
+        log.info("睡眠五秒完毕 {}",LocalDateTime.now());
+
         if (records.isEmpty()) {
             ack.acknowledge();
             return;
@@ -144,9 +143,9 @@ public class TenantMessageListener {
 
         Map<String, List<ConsumerRecord<String, String>>> recordsByTenant = records.stream()
                 .collect(Collectors.groupingBy(ConsumerRecord::key));
-
+        int totalMessages = records.stream().mapToInt(e -> 1).sum();
+        CountDownLatch latchRequest = new CountDownLatch(totalMessages);
         CountDownLatch latch = new CountDownLatch(recordsByTenant.size());
-
         // todo 修改成配置获取目的地
 //        int maxConsumeCount = serverStatusUtils.getMaxCapacity("customsServer") / recordsByTenant.size();
 
@@ -157,6 +156,7 @@ public class TenantMessageListener {
                 tenantRecords.forEach(record -> {
                     kafkaProducer.sendMessage("client-topic.dlt", record.value());
                     log.warn("租户配置不存在, 消息发送到DLQ: {}", record);
+                    latchRequest.countDown();
                 });
 
                 latch.countDown();
@@ -164,14 +164,15 @@ public class TenantMessageListener {
             }
             int maxConsumeCount = adaptiveKafkaConsumer.getCurrentRoundQuota(tenantId);
 
-            log.info("租户[{}]当前可消费消息数: {}", tenantId, maxConsumeCount);
+//            log.info("租户[{}]当前可消费消息数: {}", tenantId, maxConsumeCount);
             tenantRecords.forEach(record -> threadPool.submit(() -> {
                 int processed = tenantConfigUtils.incrementAndGetProcessed(tenantId);
-                log.info("租户[{}]正在处理第[{}]条数据: {}", tenantId, processed, record.value());
+//                log.info("租户[{}]正在处理第[{}]条数据: {}", tenantId, processed, record.value());
                 if (processed > maxConsumeCount) {
                     // 超过限流数量，重新送回队列
-                    log.info("租户[{}]超过限流数量，第[{}]消息重新送回队列: {}", tenantId, processed, record.value());
+//                    log.info("租户[{}]超过限流数量，第[{}]消息重新送回队列: {}", tenantId, processed, record.value());
                     kafkaProducer.sendMessage("client-topic", tenantId, record.value());
+                    latchRequest.countDown(); // 任务结束后 countDown
                     return;
                 }
                 try {
@@ -179,19 +180,22 @@ public class TenantMessageListener {
                 } catch (Exception e) {
                     // 说明在catch里面又出问题了，这里不再处理，直接提交死信队列
                     kafkaProducer.sendMessage("client-topic.dlt", record.value());
+                } finally {
+                    latchRequest.countDown(); // 任务结束后 countDown
                 }
             }));
-
-            tenantConfigUtils.resetProcessed(tenantId);
             latch.countDown();
         });
 
-        try {
-            latch.await(); // 确保线程池已提交所有任务
-        } catch (InterruptedException ignored) {
-        }
-
+        latch.await(); // 确保线程池已提交所有任务
         ack.acknowledge();
+
+        latchRequest.await(); // 等待所有任务完成
+        recordsByTenant.forEach((tenantId, tenantRecords) -> {
+            tenantConfigUtils.resetProcessed(tenantId);
+            adaptiveKafkaConsumer.adjustFetchCount(tenantId, tenantConfigUtils.getTenantConfig(tenantId));
+            quotaScheduler.resetServerQuota();
+        });
         pauseListenerWithDelay("pushListener", Duration.ofSeconds(5));
     }
 

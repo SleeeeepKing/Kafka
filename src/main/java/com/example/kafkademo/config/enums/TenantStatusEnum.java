@@ -1,4 +1,4 @@
-package com.example.kafkademo.config;
+package com.example.kafkademo.config.enums;
 
 public enum TenantStatusEnum {
     /**

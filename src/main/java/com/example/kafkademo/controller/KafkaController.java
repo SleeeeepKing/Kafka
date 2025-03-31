@@ -1,6 +1,6 @@
 package com.example.kafkademo.controller;
 
-import com.example.kafkademo.client.ClientDTO;
+import com.example.kafkademo.kafka.comsumer.dto.ClientDTO;
 import com.example.kafkademo.client.ClientService;
 import com.example.kafkademo.kafka.producer.KafkaProducer;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,8 +27,13 @@ public class KafkaController {
     @PostMapping("/send/test/{count}")
     public void sendDeclarationMsgTest(@PathVariable Integer count) throws JsonProcessingException {
         for (int i = 0; i < count; i++) {
+
             ClientDTO clientDTO = new ClientDTO();
-            clientDTO.setTenantId("tenantA");
+            if (i < count / 2) {
+                clientDTO.setTenantId("tenantA");
+            } else {
+                clientDTO.setTenantId("tenantB");
+            }
             clientDTO.setMessage("[" + i + "]" + LocalDateTime.now());
             clientService.processTenantMessage(clientDTO);
         }

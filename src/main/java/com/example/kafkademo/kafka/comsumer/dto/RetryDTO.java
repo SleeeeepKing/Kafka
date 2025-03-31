@@ -1,6 +1,5 @@
 package com.example.kafkademo.kafka.comsumer.dto;
 
-import com.example.kafkademo.client.ClientDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

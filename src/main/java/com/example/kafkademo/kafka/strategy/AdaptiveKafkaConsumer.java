@@ -1,8 +1,8 @@
 package com.example.kafkademo.kafka.strategy;
 
-import com.example.kafkademo.config.TenantConfigDomain;
-import com.example.kafkademo.config.TenantStatusEnum;
-import com.example.kafkademo.config.CustomsServerStatus;
+import com.example.kafkademo.config.dto.TenantConfigDomain;
+import com.example.kafkademo.config.enums.TenantStatusEnum;
+import com.example.kafkademo.config.dto.CustomsServerStatus;
 import com.example.kafkademo.util.ServerStatusUtils;
 import com.example.kafkademo.util.TenantConfigUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -31,23 +30,23 @@ public class AdaptiveKafkaConsumer {
 
 
     // 定时任务：每分钟调用一次统计和调整fetch count：
-    @Scheduled(fixedRate = 5000) //每分钟调用一次（推荐）
-    public void adjustAllTenantsFetchCount() {
-        List<String> tenantIds = tenantConfigUtils.getAllTenantIds(); //也可以从配置或Redis动态加载
-
-        for (String tenantId : tenantIds) {
-            TenantConfigDomain config = tenantConfigUtils.getTenantConfig(tenantId);
-            log.info("租户[{}]: {}", tenantId, config);
-            if (config != null) {
-                adjustFetchCount(tenantId, config);
-            }
-        }
-    }
+//    @Scheduled(fixedRate = 5000) //每分钟调用一次（推荐）
+//    public void adjustAllTenantsFetchCount() {
+//        List<String> tenantIds = tenantConfigUtils.getAllTenantIds(); //也可以从配置或Redis动态加载
+//
+//        for (String tenantId : tenantIds) {
+//            TenantConfigDomain config = tenantConfigUtils.getTenantConfig(tenantId);
+//            log.info("租户[{}]: {}", tenantId, config);
+//            if (config != null) {
+//                adjustFetchCount(tenantId, config);
+//            }
+//        }
+//    }
 
     /**
-     * 动态调整fetch count，定时器调用，每分钟一次统计数据进行调整
+     * 动态调整fetch count，每轮次推送后调用
      */
-    private void adjustFetchCount(String tenantId, TenantConfigDomain config) {
+    public void adjustFetchCount(String tenantId, TenantConfigDomain config) {
         log.info("开始动态调整租户[{}]", tenantId);
         if (config == null) return;
 

@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 
 @Component
 @Slf4j
@@ -26,7 +27,7 @@ public class AdaptiveKafkaConsumer {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
-    private static final int MIN_TOTAL_THRESHOLD = 20;
+    private static final int MIN_TOTAL_THRESHOLD = 5; // 至少推送20条数据才进行调整
 
 
     // 定时任务：每分钟调用一次统计和调整fetch count：
@@ -52,41 +53,53 @@ public class AdaptiveKafkaConsumer {
 
         // 至少推送多少条数据才进行调整
         double successRate = config.getTotal() >= MIN_TOTAL_THRESHOLD ? (double) config.getSuccess() / config.getTotal() : 1;
-
+        if (tenantConfigUtils.getTenantState(tenantId) == TenantStatusEnum.DEGRADE) {
+            successRate = 0;
+        }
         int newFetchCount = config.getFetchCount();
-        TenantStatusEnum newState;
+        TenantStatusEnum newState = config.getState();
         // todo 改成从配置文件或数据库加载
         CustomsServerStatus serverStatus = serverStatusUtils.getServerStatus("customsServer");
 
         if (serverStatus.getIsAlive() == 0) {
             newFetchCount = 1;
             newState = TenantStatusEnum.DEGRADE;
-        } else if (successRate < 0.3) {
-            newFetchCount = Math.max(Math.round(((float) newFetchCount / 2)), config.getMinFetchCount());
-            newState = TenantStatusEnum.DEGRADE;
-        } else if (successRate < 0.6) {
-            newFetchCount = Math.max((int) Math.round((newFetchCount * 0.9)), config.getMinFetchCount());
-            newState = TenantStatusEnum.MONITOR;
-        } else if (successRate < 0.8) {
-            newFetchCount = Math.min((int) Math.round((newFetchCount * 1.05)), config.getMaxFetchCount());
-            newState = TenantStatusEnum.RECOVER;
-        } else {
-            newFetchCount = Math.min((int) Math.round((newFetchCount * 1.15)), config.getMaxFetchCount());
-            newState = TenantStatusEnum.NORMAL;
+        } else if (config.getTotal() >= MIN_TOTAL_THRESHOLD) {
+            if (successRate < 0.3) {
+                newFetchCount = 1;
+                newState = TenantStatusEnum.DEGRADE;
+            } else if (successRate < 0.6) {
+                newFetchCount = Math.max((int) Math.round((newFetchCount * 0.8)), config.getMinFetchCount());
+                newState = TenantStatusEnum.MONITOR;
+            } else if (successRate < 0.8) {
+                newFetchCount = Math.min((int) Math.round((newFetchCount * 1.05)), config.getMaxFetchCount());
+                newState = TenantStatusEnum.RECOVER;
+            } else {
+                newFetchCount = Objects.equals(newState, TenantStatusEnum.DEGRADE) ? config.getMinFetchCount() : Math.min((int) Math.round((newFetchCount * 1.15)), config.getMaxFetchCount());
+                newState = TenantStatusEnum.NORMAL;
+            }
         }
-
-        config.setFetchCount(newFetchCount);
-        config.setState(newState);
+//        if (serverStatus.getIsAlive() == 0) {
+//            newState = TenantStatusEnum.DEGRADE;
+//        } else if (successRate < 0.5) {
+//            newState = TenantStatusEnum.DEGRADE;
+//        } else {
+//            newState = TenantStatusEnum.NORMAL;
+//        }
+        if (config.getTotal() >= MIN_TOTAL_THRESHOLD || serverStatus.getIsAlive() == 0) {
+            config.setFetchCount(newFetchCount);
+            config.setState(newState);
+        }
 
         tenantConfigUtils.updateFetchCount(tenantId, config.getFetchCount());
         tenantConfigUtils.updateStatus(tenantId, config.getState());
         // 重置计数，进入下一时间窗口
-//        if (config.getTotal() >= MIN_TOTAL_THRESHOLD) {
-//            config.setTotal(0);
-//            config.setSuccess(0);
-//        }
+        if (config.getTotal() >= MIN_TOTAL_THRESHOLD + 20) {
+            config.setTotal(0);
+            config.setSuccess(0);
+        }
         log.info(
-                "租户[{}],总推送数：{}, 成功数:{}, 成功率： {}%, 下一次抓取量: {}, 新状态: {}",
+                "租户[{}],总推送数：{}, 成功数:{}, 成功率： {}%, 下一次期望抓取量: {}, 新状态: {}",
                 tenantId, config.getTotal(), config.getSuccess(), successRate * 100, newFetchCount, newState
         );
     }
@@ -101,7 +114,8 @@ public class AdaptiveKafkaConsumer {
         int requiredQuota = config.getFetchCount() <= minQuota ? 0 : config.getFetchCount() - minQuota;
         int leftOver = acquireLeftoverQuota("server:customsServer:status", requiredQuota);
 //        int leftOver = 1;
-        return serverStatusUtils.getServerIsAlive("customsServer") != 1 ? 1 : minQuota + leftOver; //动态竞争quota后得出的额度
+        boolean isDown = Objects.equals(serverStatusUtils.getServerStatus("customsServer").getIsAlive(), 0) || Objects.equals(config.getState(), TenantStatusEnum.DEGRADE);
+        return isDown ? 1 : minQuota + leftOver; //动态竞争quota后得出的额度
     }
 
 

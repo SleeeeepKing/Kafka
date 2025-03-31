@@ -5,6 +5,7 @@ import com.example.kafkademo.exception.InternalServerException;
 import com.example.kafkademo.kafka.comsumer.TenantConsumerService;
 import com.example.kafkademo.kafka.producer.KafkaProducer;
 import com.example.kafkademo.kafka.strategy.AdaptiveKafkaConsumer;
+import com.example.kafkademo.util.ServerStatusUtils;
 import com.example.kafkademo.util.TeamsNotificationService;
 import com.example.kafkademo.util.TenantConfigUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -54,6 +55,8 @@ public class TenantMessageListener {
     private TenantConfigUtils tenantConfigUtils;
     @Autowired
     private AdaptiveKafkaConsumer adaptiveKafkaConsumer;
+    @Autowired
+    private ServerStatusUtils serverStatusUtils;
 
     /*************************************************************************************************************************************/
     @KafkaListener(
@@ -144,6 +147,9 @@ public class TenantMessageListener {
 
         CountDownLatch latch = new CountDownLatch(recordsByTenant.size());
 
+        // todo 修改成配置获取目的地
+//        int maxConsumeCount = serverStatusUtils.getMaxCapacity("customsServer") / recordsByTenant.size();
+
         recordsByTenant.forEach((tenantId, tenantRecords) -> {
             TenantConfigDomain tenantConfig = tenantConfigUtils.getTenantConfig(tenantId);
             if (tenantConfig == null) {
@@ -156,8 +162,8 @@ public class TenantMessageListener {
                 latch.countDown();
                 return;
             }
-
             int maxConsumeCount = adaptiveKafkaConsumer.getCurrentRoundQuota(tenantId);
+
             log.info("租户[{}]当前可消费消息数: {}", tenantId, maxConsumeCount);
             tenantRecords.forEach(record -> threadPool.submit(() -> {
                 int processed = tenantConfigUtils.incrementAndGetProcessed(tenantId);
@@ -166,7 +172,6 @@ public class TenantMessageListener {
                     // 超过限流数量，重新送回队列
                     log.info("租户[{}]超过限流数量，第[{}]消息重新送回队列: {}", tenantId, processed, record.value());
                     kafkaProducer.sendMessage("client-topic", tenantId, record.value());
-//                    tenantConfigUtils.incrementProcessed(tenantId);
                     return;
                 }
                 try {

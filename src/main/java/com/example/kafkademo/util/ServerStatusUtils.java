@@ -38,6 +38,8 @@ public class ServerStatusUtils {
         map.put("total", status.getTotal().toString());
         map.put("success", status.getSuccess().toString());
         map.put("isAlive", status.getIsAlive().toString());
+        map.put("capacity", status.getCapacity().toString());
+        map.put("quota", status.getQuota().toString());
 
         redisTemplate.opsForHash().putAll(hashKey, map);
     }
@@ -65,6 +67,10 @@ public class ServerStatusUtils {
             return 1.0;
         }
         return (double) status.getSuccess() / status.getTotal();
+    }
+
+    public Integer getMaxCapacity(String serverName) {
+        return Integer.parseInt(Objects.requireNonNull(redisTemplate.opsForHash().get("server:" + serverName + ":status", "capacity")).toString());
     }
 
 }

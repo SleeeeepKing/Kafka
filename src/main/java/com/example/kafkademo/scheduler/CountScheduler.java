@@ -13,14 +13,14 @@ public class CountScheduler {
     @Autowired
     private ServerStatusUtils serverStatusUtils;
 
-    @Scheduled(fixedRate = 5000)
-    public void resetServerQuota() {
-        String serverName = "customsServer";
-        serverStatusUtils.resetStatistics(serverName);
-    }
+//    @Scheduled(fixedRate = 5000)
+//    public void resetServerQuota() {
+//        String serverName = "customsServer";
+//        serverStatusUtils.resetStatistics(serverName);
+//    }
 
-    @Scheduled(fixedRate = 5000)
-    public void resetTenantStatistics() {
-        tenantConfigUtils.resetAllStatistics();
-    }
+//    @Scheduled(fixedRate = 5000)
+//    public void resetTenantStatistics() {
+//        tenantConfigUtils.resetAllStatistics();
+//    }
 }

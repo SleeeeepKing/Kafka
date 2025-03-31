@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Component
@@ -93,5 +94,9 @@ public class TenantConfigUtils {
 
     public void updateStatus(String tenantId, TenantStatusEnum state) {
         redisTemplate.opsForHash().put("tenant:" + tenantId + ":config", "state", state.name());
+    }
+
+    public TenantStatusEnum getTenantState(String tenantId) {
+        return Objects.requireNonNull(TenantStatusEnum.valueOf(redisTemplate.opsForHash().get("tenant:" + tenantId + ":config", "state").toString()));
     }
 }

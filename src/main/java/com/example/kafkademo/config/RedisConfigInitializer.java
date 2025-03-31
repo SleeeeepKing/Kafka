@@ -21,13 +21,13 @@ public class RedisConfigInitializer {
 
     // 可以从配置文件或数据库加载
     private static final Map<String, TenantConfigDomain> initialTenantConfig = Map.of(
-            "tenantA", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 2, 2, 5, 0, 0),
+            "tenantA", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 10, 2, 15, 0, 0),
             "tenantB", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 1, 1, 3, 0, 0),
             "tenantC", new TenantConfigDomain(0, 0, TenantStatusEnum.NORMAL, 1, 1, 3, 0, 0)
     );
     // 可以从配置文件或数据库加载
     private static final Map<String, CustomsServerStatus> initialServerStatus = Map.of(
-            "customsServer", new CustomsServerStatus( 0, 0, 1,50,43),
+            "customsServer", new CustomsServerStatus( 0, 0, 1,30,5),
             "ceoneServer", new CustomsServerStatus( 0, 0, 1,200,50)
     );
 
@@ -35,6 +35,8 @@ public class RedisConfigInitializer {
     public void initTenantConfig() {
         initialTenantConfig.forEach((tenantId, config) -> {
             String hashKey = "tenant:" + tenantId + ":config";
+            // 强制删除旧的数据
+            redisTemplate.delete(hashKey);
             Map<String, String> map = new HashMap<>();
             map.put("total", config.getTotal().toString());
             map.put("success", config.getSuccess().toString());
@@ -49,10 +51,14 @@ public class RedisConfigInitializer {
 
         initialServerStatus.forEach((server, config) -> {
             String hashKey = "server:" + server + ":status";
+            // 强制删除旧的数据
+            redisTemplate.delete(hashKey);
             Map<String, String> map = new HashMap<>();
             map.put("total", config.getTotal().toString());
             map.put("success", config.getSuccess().toString());
             map.put("isAlive", config.getIsAlive().toString());
+            map.put("capacity", config.getCapacity().toString());
+            map.put("quota", config.getQuota().toString());
 
             redisTemplate.opsForHash().putAll(hashKey, map);
         });

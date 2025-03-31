@@ -1,5 +1,6 @@
 package com.example.kafkademo.scheduler;
 
+import com.example.kafkademo.util.ServerStatusUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -15,6 +16,9 @@ public class QuotaScheduler {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+    @Autowired
+    private ServerStatusUtils serverStatusUtils;
+
     // 每5秒重置server的剩余quota
     @Scheduled(fixedRate = 5000)
     public void resetServerQuota() {
@@ -51,8 +55,8 @@ public class QuotaScheduler {
         // 4) 把 leftover写回 "server:xxx:status" hash中的 quota 字段
         redisTemplate.opsForHash().put(serverKey, "quota", String.valueOf(leftover));
 
-        System.out.printf("【%s】serverTotal=%d, sum(minFetch)=%d, leftover=%d%n",
-                serverName, serverTotalCapacity, sumMinFetchCount, leftover);
+        log.info("【{}】 {}",
+                serverName, serverStatusUtils.getServerStatus(serverName));
     }
 
     private int safeParseInt(Object obj) {

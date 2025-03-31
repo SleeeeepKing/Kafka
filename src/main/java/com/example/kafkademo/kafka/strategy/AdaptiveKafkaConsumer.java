@@ -92,11 +92,6 @@ public class AdaptiveKafkaConsumer {
 
         tenantConfigUtils.updateFetchCount(tenantId, config.getFetchCount());
         tenantConfigUtils.updateStatus(tenantId, config.getState());
-        // 重置计数，进入下一时间窗口
-        if (config.getTotal() >= MIN_TOTAL_THRESHOLD + 20) {
-            config.setTotal(0);
-            config.setSuccess(0);
-        }
         log.info(
                 "租户[{}],总推送数：{}, 成功数:{}, 成功率： {}%, 下一次期望抓取量: {}, 新状态: {}",
                 tenantId, config.getTotal(), config.getSuccess(), successRate * 100, newFetchCount, newState

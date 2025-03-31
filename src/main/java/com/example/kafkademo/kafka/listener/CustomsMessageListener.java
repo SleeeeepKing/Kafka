@@ -22,7 +22,6 @@ import org.springframework.stereotype.Component;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,7 +33,7 @@ import java.util.stream.Collectors;
 
 @Component
 @Slf4j
-public class TenantMessageListener {
+public class CustomsMessageListener {
     @Autowired
     private TeamsNotificationService teamsNotificationService;
     @Autowired
@@ -57,7 +56,7 @@ public class TenantMessageListener {
 
     /*************************************************************************************************************************************/
     @KafkaListener(
-            topics = "client-topic-retry-2000",
+            topics = "customs-topic-retry-2000",
             groupId = "multi-tenant-group",
             concurrency = "5",
             containerFactory = "kafkaListenerContainerFactory"
@@ -83,7 +82,7 @@ public class TenantMessageListener {
     }
 
     @KafkaListener(
-            topics = "client-topic-retry-4000",
+            topics = "customs-topic-retry-4000",
             groupId = "multi-tenant-group",
             concurrency = "5",
             containerFactory = "kafkaListenerContainerFactory"
@@ -109,7 +108,7 @@ public class TenantMessageListener {
     }
 
     @KafkaListener(
-            topics = "client-topic.dlt",
+            topics = "customs-topic.dlt",
             groupId = "dlt-alert-group",
             concurrency = "5",
             containerFactory = "kafkaListenerContainerFactory"
@@ -127,7 +126,7 @@ public class TenantMessageListener {
     /*************************************************************************************************************************************/
 
     @KafkaListener(
-            topics = "client-topic",
+            topics = "customs-topic",
             groupId = "multi-tenant-group",
             concurrency = "3",
             containerFactory = "idleKafkaListenerContainerFactory",
@@ -152,7 +151,7 @@ public class TenantMessageListener {
             if (tenantConfig == null) {
                 // 租户不存在，消息处理不了，提交Offset后发送到DLQ
                 tenantRecords.forEach(record -> {
-                    kafkaProducer.sendMessage("client-topic.dlt", record.value());
+                    kafkaProducer.sendMessage("customs-topic.dlt", record.value());
                     log.warn("租户配置不存在, 消息发送到DLQ: {}", record);
                     latchRequest.countDown();
                 });
@@ -169,7 +168,7 @@ public class TenantMessageListener {
                 if (processed > maxConsumeCount) {
                     // 超过限流数量，重新送回队列
 //                    log.info("租户[{}]超过限流数量，第[{}]消息重新送回队列: {}", tenantId, processed, record.value());
-                    kafkaProducer.sendMessage("client-topic", tenantId, record.value());
+                    kafkaProducer.sendMessage("customs-topic", tenantId, record.value());
                     latchRequest.countDown(); // 任务结束后 countDown
                     return;
                 }
@@ -177,7 +176,7 @@ public class TenantMessageListener {
                     tenantConsumerService.consume(record, 1, ack);
                 } catch (Exception e) {
                     // 说明在catch里面又出问题了，这里不再处理，直接提交死信队列
-                    kafkaProducer.sendMessage("client-topic.dlt", record.value());
+                    kafkaProducer.sendMessage("customs-topic.dlt", record.value());
                 } finally {
                     latchRequest.countDown(); // 任务结束后 countDown
                 }

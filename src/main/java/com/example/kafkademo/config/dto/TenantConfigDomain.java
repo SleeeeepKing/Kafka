@@ -9,12 +9,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class TenantConfigDomain {
-    private Integer total; // 发送总数
-    private Integer success; // 成功数
+    private Integer total; // 发送总数，每个时间窗口重置为0
+    private Integer success; // 成功数， 每个时间窗口重置为0
     private TenantStatusEnum state; // 租户状态
-    private Integer fetchCount; // 每次拉取数量 = 1 或者 (minFetchCount + leftOver)
-    private Integer minFetchCount; // 最小拉取数量, 初始配额/分区数
-    private Integer maxFetchCount; // 最大拉取数量
-    private Integer leftOver; // 竞争到的剩余额度
-    private Integer processed; // 当前轮次已处理的消息数
+    private Integer leftOver; // 剩余可处理额度（每消费一条消息就减一条，最小值为0），每个时间窗口重新分配
+    private Integer detection; // 状态为DOWN时的连续成功次数，到达5则恢复NORMAL，在到达5次或者成功中断则计数清空
+    private Integer capacity; // 服务器容量
 }

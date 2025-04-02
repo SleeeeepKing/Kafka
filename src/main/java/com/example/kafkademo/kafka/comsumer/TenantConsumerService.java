@@ -7,6 +7,7 @@ import com.example.kafkademo.config.dto.CustomsServerStatus;
 import com.example.kafkademo.config.dto.TenantConfigDomain;
 import com.example.kafkademo.kafka.handler.MessageHandler;
 import com.example.kafkademo.kafka.producer.KafkaProducer;
+import com.example.kafkademo.kafka.strategy.AdaptiveKafkaConsumer;
 import com.example.kafkademo.util.ServerStatusUtils;
 import com.example.kafkademo.util.TenantConfigUtils;
 import com.example.kafkademo.util.TenantHandlerMapping;
@@ -20,14 +21,15 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class TenantConsumerService {
-    @Autowired
-    private TenantHandlerMapping handlerMapping;
     @Autowired
     private TenantConfigUtils tenantConfigUtils;
     @Autowired
@@ -35,15 +37,11 @@ public class TenantConsumerService {
     @Autowired
     private TenantHandlerMapping tenantHandlerMapping;
     @Autowired
-    private ClientService clientService;
-    @Autowired
-    private RedisTemplate<String, String> redisTemplate;
-    @Autowired
-    private ThreadPoolTaskExecutor taskExecutor;
-    @Autowired
     private FIFOCache<String, Boolean> fifoCache;
     @Autowired
     private KafkaProducer kafkaProducer;
+    @Autowired
+    private AdaptiveKafkaConsumer adaptiveKafkaConsumer;
 
     private static final int RATE_LIMIT_PER_BATCH = 20;
 
@@ -52,35 +50,65 @@ public class TenantConsumerService {
 
     @Deprecated
     public void consumeByBatch(List<ConsumerRecord<String, String>> records, Acknowledgment ack) throws JsonProcessingException {
-//        if (records.isEmpty()) {
-//            ack.acknowledge();
-//            return;
-//        }
-//        int processedCount = 0;
-//        for (ConsumerRecord<String, String> record : records) {
-//            ClientDTO clientDTO = objectMapper.readValue(record.value(), ClientDTO.class);
-//            TenantConfigDomain config = tenantConfigUtils.getTenantConfig(clientDTO.getTenantId());
-//            if (config == null) {
-//                log.info("未找到租户配置：{}", clientDTO.getTenantId());
-//                continue;
-//            }
-//            CustomsServerStatus customsServerStatus = serverStatusUtils.getServerStatus("customsServer");
-//            //         计算本轮可用额度
-//            int minQuota = config.getMinFetchCount();
-//            int requiredQuota = config.getFetchCount() <= minQuota ? 0 : config.getFetchCount() - minQuota;
-//            int leftOver = acquireLeftoverQuota("server:customsServer:status", requiredQuota);
-//            int quotaThisRound = customsServerStatus.getIsAlive() != 1 ? 1 : minQuota + leftOver; //动态竞争quota后得出的额度
-//
-//            if (processedCount >= RATE_LIMIT_PER_BATCH) {
-//                break;
-//            }
-//            try {
-//                consume(record, 1, ack);
-//                processedCount++;
-//            } catch (Exception e) {
-//                log.error("Failed to process message", e);
-//            }
-//        }
+        if (records.isEmpty()) {
+            ack.acknowledge();
+            return;
+        }
+        List<ConsumerRecord<String, String>> errorRecords = new ArrayList<>();
+        List<ClientDTO> clientDTOList = new ArrayList<>(records.stream()
+                .map(record -> {
+                    try {
+                        return objectMapper.readValue(record.value(), ClientDTO.class);
+                    } catch (JsonProcessingException e) {
+                        log.error("Failed to parse ClientDTO", e);
+                        errorRecords.add(record);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .toList());
+        // 拿到所有的targetId并去重
+        List<String> tenantIds = clientDTOList.stream()
+                .map(ClientDTO::getTenantId)
+                .distinct()
+                .toList();
+        // 首先分配下一轮的配额
+        adaptiveKafkaConsumer.adjustQuota(tenantIds);
+
+        clientDTOList.forEach(clientDTO -> {
+            TenantConfigDomain config = tenantConfigUtils.getTenantConfig(clientDTO.getTenantId());
+            if (config == null) {
+                log.info("未找到租户配置：{}", clientDTO.getTenantId());
+                // 发送到死信队列
+                kafkaProducer.sendMessage("customs-topic.dlt", clientDTO.toString());
+                // 从队列中删除
+                clientDTOList.remove(clientDTO);
+                return;
+            }
+        });
+
+
+        // 开始处理消息
+        // 首先分配下轮每个租户的配额
+
+
+        // 首先分组租户
+        Map<String, List<ClientDTO>> recordsByTenant = clientDTOList.stream()
+                .collect(Collectors.groupingBy(ClientDTO::getTenantId));
+
+        clientDTOList.forEach(clientDTO -> {
+            CustomsServerStatus customsServerStatus = serverStatusUtils.getServerStatus("customsServer");
+
+            if (processedCount >= RATE_LIMIT_PER_BATCH) {
+                break;
+            }
+            try {
+                consume(record, 1, ack);
+                processedCount++;
+            } catch (Exception e) {
+                log.error("Failed to process message", e);
+            }
+        });
     }
 
 
@@ -101,11 +129,12 @@ public class TenantConsumerService {
         fifoCache.put(cacheKey, true);
 
         try {
-            // todo 这里改成目标服务器唯一标识
+            // 获取租户配置/额度
             CustomsServerStatus customsServerStatus = serverStatusUtils.getServerStatus("customsServer");
 
             ClientDTO clientDTO = objectMapper.readValue(record.value(), ClientDTO.class);
             String tenantId = clientDTO.getTenantId();
+            // 拿到该租户配额
             TenantConfigDomain config = tenantConfigUtils.getTenantConfig(tenantId);
             if (config == null) {
                 log.info("未找到租户配置：{}", tenantId);

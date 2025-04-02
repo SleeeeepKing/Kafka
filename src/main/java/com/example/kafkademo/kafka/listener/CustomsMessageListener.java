@@ -126,7 +126,7 @@ public class CustomsMessageListener {
     /*************************************************************************************************************************************/
 
     @KafkaListener(
-            topics = "customs-topic",
+            topics = "customs-topic", // 目的地-海关
             groupId = "multi-tenant-group",
             concurrency = "3",
             containerFactory = "idleKafkaListenerContainerFactory",

@@ -1,8 +1,8 @@
 package com.example.kafkademo.kafka.strategy;
 
+import com.example.kafkademo.config.dto.CustomsServerStatus;
 import com.example.kafkademo.config.dto.TenantConfigDomain;
 import com.example.kafkademo.config.enums.TenantStatusEnum;
-import com.example.kafkademo.config.dto.CustomsServerStatus;
 import com.example.kafkademo.util.ServerStatusUtils;
 import com.example.kafkademo.util.TenantConfigUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -46,56 +46,91 @@ public class AdaptiveKafkaConsumer {
     /**
      * 动态调整fetch count，每轮次推送后调用
      */
-    public void adjustFetchCount(String tenantId, TenantConfigDomain config) {
-        log.info("开始动态调整租户[{}]", tenantId);
-        if (config == null) return;
-
-        // 至少推送多少条数据才进行调整
-        double successRate = config.getTotal() >= MIN_TOTAL_THRESHOLD ? (double) config.getSuccess() / config.getTotal() : 1;
-        if (tenantConfigUtils.getTenantState(tenantId) == TenantStatusEnum.DEGRADE) {
-            successRate = 0;
-        }
-        int newFetchCount = config.getFetchCount();
-        TenantStatusEnum newState = config.getState();
-        // todo 改成从配置文件或数据库加载
-        CustomsServerStatus serverStatus = serverStatusUtils.getServerStatus("customsServer");
-
-        if (serverStatus.getIsAlive() == 0) {
-            newFetchCount = 1;
-            newState = TenantStatusEnum.DEGRADE;
-        } else if (config.getTotal() >= MIN_TOTAL_THRESHOLD) {
-            if (successRate < 0.3) {
-                newFetchCount = 1;
-                newState = TenantStatusEnum.DEGRADE;
-            } else if (successRate < 0.6) {
-                newFetchCount = Math.max((int) Math.round((newFetchCount * 0.8)), config.getMinFetchCount());
-                newState = TenantStatusEnum.MONITOR;
-            } else if (successRate < 0.8) {
-                newFetchCount = Math.min((int) Math.round((newFetchCount * 1.05)), config.getMaxFetchCount());
-                newState = TenantStatusEnum.RECOVER;
-            } else {
-                newFetchCount = Objects.equals(newState, TenantStatusEnum.DEGRADE) ? config.getMinFetchCount() : Math.min((int) Math.round((newFetchCount * 1.15)), config.getMaxFetchCount());
-                newState = TenantStatusEnum.NORMAL;
-            }
-        }
-//        if (serverStatus.getIsAlive() == 0) {
-//            newState = TenantStatusEnum.DEGRADE;
-//        } else if (successRate < 0.5) {
-//            newState = TenantStatusEnum.DEGRADE;
-//        } else {
-//            newState = TenantStatusEnum.NORMAL;
+//    public void adjustFetchCount(String tenantId, TenantConfigDomain config) {
+//        log.info("开始动态调整租户[{}]", tenantId);
+//        if (config == null) return;
+//
+//        // 至少推送多少条数据才进行调整
+//        double successRate = config.getTotal() >= MIN_TOTAL_THRESHOLD ? (double) config.getSuccess() / config.getTotal() : 1;
+//        if (tenantConfigUtils.getTenantState(tenantId) == TenantStatusEnum.DEGRADE) {
+//            successRate = 0;
 //        }
-        if (config.getTotal() >= MIN_TOTAL_THRESHOLD || serverStatus.getIsAlive() == 0) {
-            config.setFetchCount(newFetchCount);
-            config.setState(newState);
-        }
+//        int newFetchCount = config.getFetchCount();
+//        TenantStatusEnum newState = config.getState();
+//        // todo 改成从配置文件或数据库加载
+//        CustomsServerStatus serverStatus = serverStatusUtils.getServerStatus("customsServer");
+//
+//        if (serverStatus.getIsAlive() == 0) {
+//            newFetchCount = 1;
+//            newState = TenantStatusEnum.DEGRADE;
+//        } else if (config.getTotal() >= MIN_TOTAL_THRESHOLD) {
+//            if (successRate < 0.3) {
+//                newFetchCount = 1;
+//                newState = TenantStatusEnum.DEGRADE;
+//            } else if (successRate < 0.6) {
+//                newFetchCount = Math.max((int) Math.round((newFetchCount * 0.8)), config.getMinFetchCount());
+//                newState = TenantStatusEnum.MONITOR;
+//            } else if (successRate < 0.8) {
+//                newFetchCount = Math.min((int) Math.round((newFetchCount * 1.05)), config.getMaxFetchCount());
+//                newState = TenantStatusEnum.RECOVER;
+//            } else {
+//                newFetchCount = Objects.equals(newState, TenantStatusEnum.DEGRADE) ? config.getMinFetchCount() : Math.min((int) Math.round((newFetchCount * 1.15)), config.getMaxFetchCount());
+//                newState = TenantStatusEnum.NORMAL;
+//            }
+//        }
+////        if (serverStatus.getIsAlive() == 0) {
+////            newState = TenantStatusEnum.DEGRADE;
+////        } else if (successRate < 0.5) {
+////            newState = TenantStatusEnum.DEGRADE;
+////        } else {
+////            newState = TenantStatusEnum.NORMAL;
+////        }
+//        if (config.getTotal() >= MIN_TOTAL_THRESHOLD || serverStatus.getIsAlive() == 0) {
+//            config.setFetchCount(newFetchCount);
+//            config.setState(newState);
+//        }
+//
+//        tenantConfigUtils.updateFetchCount(tenantId, config.getFetchCount());
+//        tenantConfigUtils.updateStatus(tenantId, config.getState());
+//        log.info(
+//                "租户[{}],总推送数：{}, 成功数:{}, 成功率： {}%, 下一次期望抓取量: {}, 新状态: {}",
+//                tenantId, config.getTotal(), config.getSuccess(), successRate * 100, newFetchCount, newState
+//        );
+//    }
 
-        tenantConfigUtils.updateFetchCount(tenantId, config.getFetchCount());
-        tenantConfigUtils.updateStatus(tenantId, config.getState());
-        log.info(
-                "租户[{}],总推送数：{}, 成功数:{}, 成功率： {}%, 下一次期望抓取量: {}, 新状态: {}",
-                tenantId, config.getTotal(), config.getSuccess(), successRate * 100, newFetchCount, newState
-        );
+    /**
+     * 动态调整fetch count，每轮次推送后调用
+     */
+    public void adjustQuota(List<String> tenantIdList) {
+
+        tenantIdList.forEach(tenantId -> {
+            TenantConfigDomain config = tenantConfigUtils.getTenantConfig(tenantId);
+            if (config == null) {
+                return;
+            }
+            // 判断用户状态是否为down
+            if (config.getState() == TenantStatusEnum.DOWN) {
+                tenantConfigUtils.updateLeftOver(tenantId, 1);
+            } else {
+                // 开始根据成功率对最大容量capacity进行调整
+                boolean reachThreshold = config.getTotal() >= MIN_TOTAL_THRESHOLD;
+                if (!reachThreshold) {
+                    Integer quotaNextRound = getQuotaByStatusAndCapacity(config.getState(), config.getCapacity());
+                    tenantConfigUtils.updateLeftOver(tenantId, quotaNextRound);
+                    return;
+                }
+                Double successRate = (double) config.getSuccess() / config.getTotal();
+                TenantStatusEnum newStatus = getStatusBySuccessRate(successRate);
+                Integer quotaNextRound = getQuotaByStatusAndCapacity(newStatus, config.getCapacity());
+                tenantConfigUtils.updateStatus(tenantId, newStatus);
+                tenantConfigUtils.updateLeftOver(tenantId, quotaNextRound);
+            }
+
+            log.info(
+                    "租户[{}],总推送数：{}, 成功数:{}, 成功率： {}%, 下一次期望抓取量: {}, 新状态: {}",
+                    tenantId, config.getTotal(), config.getSuccess(), (config.getSuccess() / config.getTotal()) * 100, config.getLeftOver(), newState
+            );
+        });
     }
 
     /**
@@ -147,5 +182,26 @@ public class AdaptiveKafkaConsumer {
 
         // 如果result为null或其他情况，返回0
         return result == null ? 0 : result.intValue();
+    }
+
+    private Integer getQuotaByStatusAndCapacity(TenantStatusEnum status, Integer capacity) {
+        return switch (status) {
+            case NORMAL -> capacity;
+            case MONITOR -> (int) Math.round(capacity * 0.5);
+            case DEGRADE -> (int) Math.round(capacity * 0.3);
+            case DOWN -> 1;
+        };
+    }
+
+    private TenantStatusEnum getStatusBySuccessRate(Double successRate) {
+        if (successRate < 0.3) {
+            return TenantStatusEnum.DOWN;
+        } else if (successRate < 0.6) {
+            return TenantStatusEnum.DEGRADE;
+        } else if (successRate < 0.8) {
+            return TenantStatusEnum.MONITOR;
+        } else {
+            return TenantStatusEnum.NORMAL;
+        }
     }
 }

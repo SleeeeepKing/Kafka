@@ -82,6 +82,10 @@ public class TenantConfigUtils {
         }
     }
 
+    public void updateLeftOver(String tenantId, Integer leftOver) {
+        redisTemplate.opsForHash().put("tenant:" + tenantId + ":config", "leftOver", leftOver.toString());
+    }
+
     public List<String> getAllTenantIds(){
         // todo 从数据库中获取租户列表
         return List.of("tenantA", "tenantB", "tenantC");
